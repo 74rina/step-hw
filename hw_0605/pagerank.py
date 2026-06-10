@@ -1,5 +1,7 @@
 import sys
 import collections
+from collections import deque
+
 
 class Wikipedia:
 
@@ -37,6 +39,9 @@ class Wikipedia:
         print("Finished reading %s" % links_file)
         print()
         print(self.links)
+
+        # self.title_to_id['渋谷'] = 1 のような辞書
+        self.title_to_id = {title: page_id for page_id, title in self.titles.items()}
 
 
     # Example: Find the longest titles.
@@ -78,8 +83,37 @@ class Wikipedia:
         #------------------------#
         # Write your code here!  #
         #------------------------#
-        pass
+        start_id = self.title_to_id[start]
+        goal_id = self.title_to_id[goal]
+        searching = deque([start_id])
+        searched = set()
+        edges = {} 
+        
+        while searching:
+            # 探索中から id を1つ取り出す
+            cur_node = searching.popleft()
+            
+            # 取り出した id が goal だった場合
+            if cur_node == goal_id:
+                path = [self.titles[cur_node]]
+                # startまで辺をさかのぼる
+                while cur_node in edges:
+                    cur_node_origin = edges[cur_node]
+                    path.append(self.titles[cur_node_origin])
+                    cur_node = cur_node_origin
+                print(path[::-1])
+                return 
+            
+            # 取り出した id を探索済みにする
+            searched.add(cur_node)
 
+            # 取り出した id に隣接する id を探索中にする
+            for nxt_node in self.links[cur_node]:
+                if nxt_node not in searched:
+                    searching.append(nxt_node)
+                    edges[nxt_node] = cur_node
+                    
+        return False
 
     # Homework #2: Calculate the page ranks and print the most popular pages.
     def find_most_popular_pages(self):
@@ -128,13 +162,17 @@ if __name__ == "__main__":
         exit(1)
     '''
 
-    wikipedia = Wikipedia("./pages_small.txt", "./links_small.txt")
+    wikipedia = Wikipedia("./wikipedia_dataset/pages_medium.txt", "./wikipedia_dataset/links_medium.txt")
     # Example
     wikipedia.find_longest_titles()
     # Example
     wikipedia.find_most_linked_pages()
+    
     # Homework #1
+    wikipedia.find_shortest_path("A", "F")
     wikipedia.find_shortest_path("渋谷", "パレートの法則")
+    wikipedia.find_shortest_path("渋谷", "骨なし魚")
+    
     # Homework #2
     wikipedia.find_most_popular_pages()
     # Homework #3 (optional)

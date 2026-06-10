@@ -38,7 +38,6 @@ class Wikipedia:
                 self.links[src].append(dst)
         print("Finished reading %s" % links_file)
         print()
-        print(self.links)
 
         # self.title_to_id['渋谷'] = 1 のような辞書
         self.title_to_id = {title: page_id for page_id, title in self.titles.items()}
@@ -96,13 +95,14 @@ class Wikipedia:
             # 取り出した id が goal だった場合
             if cur_node == goal_id:
                 path = [self.titles[cur_node]]
+                
                 # startまで辺をさかのぼる
                 while cur_node in edges:
                     cur_node_origin = edges[cur_node]
                     path.append(self.titles[cur_node_origin])
                     cur_node = cur_node_origin
-                print(path[::-1])
-                return 
+                print(f"The shortest path from {start} to {goal} is {path[::-1]}")
+                return True
             
             # 取り出した id を探索済みにする
             searched.add(cur_node)
@@ -112,7 +112,8 @@ class Wikipedia:
                 if nxt_node not in searched:
                     searching.append(nxt_node)
                     edges[nxt_node] = cur_node
-                    
+        
+        print(f"No path from {start} to {goal}...") 
         return False
 
     # Homework #2: Calculate the page ranks and print the most popular pages.
@@ -120,7 +121,68 @@ class Wikipedia:
         #------------------------#
         # Write your code here!  #
         #------------------------#
-        pass
+        
+        # ページランクの収束判定
+        def converge(old_pageranks, new_pageranks):
+            diff = 0
+            
+            for page_id, rank in old_pageranks.items():
+                old_rank = rank
+                new_rank = new_pageranks[page_id]
+                diff += (new_rank - old_rank) ** 2
+
+            return diff < 0.01
+
+
+        # ページランク上位k個の表示
+        def list_the_top_k(pageranks, k):
+            # ページランクの大きい順に並べる
+            sorted_pageranks = sorted(pageranks.items(), key=lambda x: x[1], reverse=True)
+            
+            print("The most important pages are:")
+            
+            # ページランク上位k個 のページタイトルを出力する
+            for i in range(k):
+                if i == len(sorted_pageranks):
+                    break
+                
+                page_id, rank = sorted_pageranks[i]
+                print(f"{i+1}: {self.titles[page_id]}, {rank}")
+                      
+            return 
+        
+        
+        # ページランクの辞書を初期化 {page_id: rank}
+        pageranks = dict.fromkeys(self.titles, 1)
+        
+        # ページランクの更新
+        while True:
+            # 更新後のページランクの辞書を初期化
+            new_pageranks = dict.fromkeys(self.titles, 0)
+
+            distribute_all = 0
+            
+            for cur_node, nxt_nodes in self.links.items():
+                distribute_all += pageranks[cur_node] * 0.15 / len(self.titles)
+                if nxt_nodes:
+                    distribute_next = pageranks[cur_node] * 0.85 / len(nxt_nodes)
+                
+                # 隣接ノードに、ノードの85%を均等に分配
+                if nxt_nodes:
+                    for nxt_node in nxt_nodes:
+                        new_pageranks[nxt_node] += distribute_next
+                
+            # 全ノードに、ノードの15%を分配
+            for page_id in self.titles.keys():
+                new_pageranks[page_id] += distribute_all
+            
+            # ページランクの収束判定
+            if converge(pageranks, new_pageranks):
+                return list_the_top_k(new_pageranks, 10)
+            else:
+                pageranks = new_pageranks
+                print(pageranks)
+                
 
 
     # Homework #3 (optional):
@@ -164,14 +226,14 @@ if __name__ == "__main__":
 
     wikipedia = Wikipedia("./wikipedia_dataset/pages_medium.txt", "./wikipedia_dataset/links_medium.txt")
     # Example
-    wikipedia.find_longest_titles()
+    # wikipedia.find_longest_titles()
     # Example
-    wikipedia.find_most_linked_pages()
+    # wikipedia.find_most_linked_pages()
     
     # Homework #1
-    wikipedia.find_shortest_path("A", "F")
-    wikipedia.find_shortest_path("渋谷", "パレートの法則")
-    wikipedia.find_shortest_path("渋谷", "骨なし魚")
+    # wikipedia.find_shortest_path("A", "F")
+    # wikipedia.find_shortest_path("渋谷", "パレートの法則")
+    # wikipedia.find_shortest_path("渋谷", "骨なし魚")
     
     # Homework #2
     wikipedia.find_most_popular_pages()

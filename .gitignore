@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# large files
+./hw_0605/wikipedia_dataset/
+./hw_0515/words.txt

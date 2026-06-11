@@ -219,7 +219,7 @@ class Wikipedia:
         landing_weight = 0.1
         
         
-        # 状態クラス
+        # path の状態クラス
         @dataclass
         class State:
             node: int
@@ -248,8 +248,6 @@ class Wikipedia:
                 state = state.parent
             return False
             
-        
-        # Beam Search のスコア算出
         
         # 逆向きの links を作る
         reverse_links = {node: [] for node in self.links.keys()}
@@ -311,27 +309,20 @@ class Wikipedia:
                 # 暫定候補
                 local_candidates = []
                     
+                    
                 # 隣接ノードを探索する
                 for nxt_node in self.links[cur_node]:
-                    # 枝刈り（ゴールに到達不能ノードを排除）
+                    # ゴールに到達不能なら飛ばす
                     if nxt_node not in dist_to_goal:
                         continue
                     
+                    # 訪問済みなら飛ばす
                     if contains_in_path(state, nxt_node):
                         continue
 
                     new_depth = state.depth + 1
                     
-                    # goal に到達不能なノードは枝刈り
-                    if nxt_node not in dist_to_goal:
-                        continue
-                        
-                    # 同じ path 内で再訪問しない
-                    if contains_in_path(state, nxt_node):
-                        continue
-                    
-                    new_depth = state.depth + 1
-                    # goal に着いたら即 best 更新
+                    # ゴールに到達した場合
                     if nxt_node == goal_id:
                         if new_depth > longest_path_length:
                             goal_state = State(
@@ -341,6 +332,7 @@ class Wikipedia:
                                 score=state.score
                             )
 
+                            # 最長 state を更新
                             best_state = goal_state
                             longest_path_length = new_depth
 
@@ -353,24 +345,17 @@ class Wikipedia:
                     d = min(dist_to_goal[nxt_node], dist_cap)
                     out_deg = reachable_out_degree.get(nxt_node, 0)
 
-                    if new_depth < target_depth:
-                        score = (
-                            new_depth
-                            + dist_weight * d
-                            + edge_weight * out_deg
-                        )
-                    else:
-                        # 目標深さを超えたら、goal に着地しやすい方も高評価
-                        score = (
-                            new_depth
-                            - landing_weight * dist_to_goal[nxt_node]
-                            + edge_weight * out_deg
-                        )
+                    # 探索用のスコアを算出
+                    score = (
+                        new_depth
+                        + dist_weight * d
+                        + edge_weight * out_deg
+                    )
 
                     local_candidates.append((score, nxt_node, new_depth))
 
-                # 出次数が大きいノードで候補が爆発しないよう、
-                # 各 state ごとに上位 children_per_state 個だけ残す
+
+                # state の上位 children_per_state 個だけ残す
                 if len(local_candidates) > children_per_state:
                     local_candidates = heapq.nlargest(
                         children_per_state,
@@ -387,36 +372,32 @@ class Wikipedia:
                     )
 
                     candidates.append(new_state)
-
+            
+            
+            # 探索候補リストが空の場合、ループを抜ける
             if not candidates:
                 break
 
-            # -----------------------------
-            # beam の残し方
-            #
-            # 1. score が高いもの
-            # 2. goal に近いもの
-            #
-            # を混ぜる
-            # -----------------------------
+            
+            # 探索候補リストから上位（beam幅）個を選ぶ
             far_keep = int(beam_width * 0.7)
             near_keep = beam_width - far_keep
 
-            # 長く伸びそうな候補
+            # 長く伸びそうな候補（far_keep 個）
             top_by_score = heapq.nlargest(
                 far_keep,
                 candidates,
                 key=lambda s: s.score
             )
 
-            # goal に近い候補
+            # goal に近い候補（near_keep 個）
             top_by_near_goal = heapq.nsmallest(
                 near_keep,
                 candidates,
                 key=lambda s: dist_to_goal[s.node]
             )
 
-            # 重複除去
+
             new_beam = []
             seen_ids = set()
 
@@ -432,13 +413,7 @@ class Wikipedia:
             # すでに max_depth 付近まで行ったら終了
             if step >= max_depth:
                 break
-
-            # -----------------------------
-            # best_state があればそこから復元
-            # なければ初期最短経路を使う
-            # -----------------------------
-            if best_state is not None:
-                longest_path = reconstruct_path(best_state)
+            
 
             print(f"The length of the longest path is {longest_path_length}")
     
@@ -483,7 +458,7 @@ if __name__ == "__main__":
     # wikipedia.find_shortest_path("渋谷", "骨なし魚")
     
     # Homework #2
-    wikipedia.find_most_popular_pages()
+    # wikipedia.find_most_popular_pages()
     # Homework #3 (optional)
     # wikipedia.find_longest_path("A", "F")
-    # wikipedia.find_longest_path("渋谷", "池袋")
+    wikipedia.find_longest_path("渋谷", "池袋")

@@ -87,33 +87,31 @@ class Wikipedia:
         start_id = self.title_to_id[start]
         goal_id = self.title_to_id[goal]
         searching = deque([start_id])
-        searched = set()
-        edges = {} 
+        prev = {start_id: None}
+        
+        if start == goal:
+            return False
         
         while searching:
             # 探索中から id を1つ取り出す
             cur_node = searching.popleft()
-            
-            # 取り出した id が goal だった場合
-            if cur_node == goal_id:
-                path = [self.titles[cur_node]]
-                
-                # startまで辺をさかのぼる
-                while cur_node in edges:
-                    cur_node_origin = edges[cur_node]
-                    path.append(self.titles[cur_node_origin])
-                    cur_node = cur_node_origin
-                print(f"The shortest path from {start} to {goal} is {path[::-1]}")
-                return True
-            
-            # 取り出した id を探索済みにする
-            searched.add(cur_node)
 
             # 取り出した id に隣接する id を探索中にする
             for nxt_node in self.links[cur_node]:
-                if nxt_node not in searched:
+                if nxt_node not in prev:
+                    prev[nxt_node] = cur_node
+                    
+                    # 隣接する id が goal だった場合
+                    if nxt_node == goal_id:
+                        path = []
+                        cur = goal_id
+                        while cur:
+                            path.append(self.titles[cur])
+                            cur = prev[cur]
+                        print(f"The shortest path from {start} to {goal} is {path[::-1]}")
+                        return True
+                    
                     searching.append(nxt_node)
-                    edges[nxt_node] = cur_node
         
         print(f"No path from {start} to {goal}...") 
         return False
@@ -124,8 +122,10 @@ class Wikipedia:
         # Write your code here!  #
         #------------------------#
         
-        # ページランクの収束判定
-        def converge(old_pageranks, new_pageranks):
+        limit = 10000 # ループの上限回数
+        
+        # ページランクの収束判定 O(N)
+        def converge(old_pageranks, new_pageranks, step):
             diff = 0
             
             for page_id, rank in old_pageranks.items():
@@ -133,10 +133,11 @@ class Wikipedia:
                 new_rank = new_pageranks[page_id]
                 diff += (new_rank - old_rank) ** 2
 
+            print(f"step{step}: {diff}")
             return diff < 0.01
 
 
-        # ページランク上位k個の表示
+        # ページランク上位k個の表示 O(NlogN)
         def list_the_top_k(pageranks, k):
             # ページランクの大きい順に並べる
             sorted_pageranks = sorted(pageranks.items(), key=lambda x: x[1], reverse=True)
@@ -158,32 +159,33 @@ class Wikipedia:
         pageranks = dict.fromkeys(self.titles, 1)
         
         # ページランクの更新
-        while True:
+        step = 0
+        while step < limit:
             # 更新後のページランクの辞書を初期化
             new_pageranks = dict.fromkeys(self.titles, 0)
-
             distribute_all = 0
             
-            for cur_node, nxt_nodes in self.links.items():
-                distribute_all += pageranks[cur_node] * 0.15 / len(self.titles)
+            for cur_node, nxt_nodes in self.links.items():        
                 if nxt_nodes:
                     distribute_next = pageranks[cur_node] * 0.85 / len(nxt_nodes)
-                
-                # 隣接ノードに、ノードの85%を均等に分配
-                if nxt_nodes:
+                    distribute_all += pageranks[cur_node] * 0.15 / len(self.titles)
+                    
                     for nxt_node in nxt_nodes:
                         new_pageranks[nxt_node] += distribute_next
+                        
+                else:
+                    distribute_all += pageranks[cur_node] / len(self.titles)
                 
-            # 全ノードに、ノードの15%を分配
+            # 全ノードに分配 O(N)
             for page_id in self.titles.keys():
                 new_pageranks[page_id] += distribute_all
             
             # ページランクの収束判定
-            if converge(pageranks, new_pageranks):
+            if converge(pageranks, new_pageranks, step):
                 return list_the_top_k(new_pageranks, 10)
             else:
                 pageranks = new_pageranks
-                print(pageranks)
+                step += 1
                 
 
 
@@ -481,7 +483,7 @@ if __name__ == "__main__":
     # wikipedia.find_shortest_path("渋谷", "骨なし魚")
     
     # Homework #2
-    # wikipedia.find_most_popular_pages()
+    wikipedia.find_most_popular_pages()
     # Homework #3 (optional)
     # wikipedia.find_longest_path("A", "F")
-    wikipedia.find_longest_path("渋谷", "池袋")
+    # wikipedia.find_longest_path("渋谷", "池袋")

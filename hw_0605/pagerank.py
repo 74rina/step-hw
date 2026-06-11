@@ -2,6 +2,7 @@ import sys
 import collections
 from collections import deque
 import heapq
+from dataclasses import dataclass
 
 
 class Wikipedia:
@@ -200,15 +201,51 @@ class Wikipedia:
         visited = set()
         
         # 結果
-        longest_path = []
         longest_path_length = 0
+        best_state = None
         
         # Beam Search の定数
-        max_depth = 100000
+        max_depth = 200000
         beam_width = 10
-        dist_weight = 1.0
-        edge_weight = 0.1
+        dist_weight = 0.05
+        edge_weight = 0.01
+        children_per_state = 30
+        dist_cap = 1000
         
+        # 長さの目標
+        target_depth = 160000
+        landing_weight = 0.1
+        
+        
+        # 状態クラス
+        @dataclass
+        class State:
+            node: int
+            parent: object
+            depth: int
+            score: float
+        
+        
+        # 現在の状態の遷移元を辿る
+        def reconstruct_path(state):
+            path = []
+
+            while state is not None:
+                path.append(state.node)
+                state = state.parent
+
+            path.reverse()
+            return path
+
+        
+        # 隣接ノードが訪問済みかの判定
+        def contains_in_path(state, nxt):
+            while state is not None:
+                if state.node == nxt:
+                    return True
+                state = state.parent
+            return False
+            
         
         # Beam Search のスコア算出
         
@@ -223,15 +260,14 @@ class Wikipedia:
         # ゴール→各ノードの最短経路を求める（逆向きBFS）
         dist_to_goal = {goal_id: 0}
         searching = deque([goal_id])
-        
+
         while searching:
             cur_node = searching.popleft()
-            
             for prev_node in reverse_links[cur_node]:
                 if prev_node not in dist_to_goal:
                     dist_to_goal[prev_node] = dist_to_goal[cur_node] + 1
                     searching.append(prev_node)
-        
+            
         # start から goal に到達不可能の場合
         if start_id not in dist_to_goal:
             print("No path found...")
@@ -249,16 +285,29 @@ class Wikipedia:
         
         
         # Beam Search でスコアの高いものを選んで探索する
-        beam = [([start_id], {start_id})]
+        start_state = State(
+            node=start_id,
+            parent=None,
+            depth=1,
+            score=0.0
+        )
+        
+        beam = [start_state]
+        step = 0
+        
         while beam:
+            step += 1
             candidates = []
             
-            for path, visited in beam:
-                cur_node = path[-1]
+            for state in beam:
+                cur_node = state.node
                 
                 # 探索の深さ制限
-                if len(path) > max_depth:
+                if state.depth > max_depth:
                     continue
+                
+                # 暫定候補
+                local_candidates = []
                     
                 # 隣接ノードを探索する
                 for nxt_node in self.links[cur_node]:
@@ -266,49 +315,130 @@ class Wikipedia:
                     if nxt_node not in dist_to_goal:
                         continue
                     
-                    # ゴールに達する場合
-                    if cur_node == goal_id:
-                        if len(path) > len(longest_path):
-                            longest_path_length = len(path)
-                            longest_path = path[:]
-                            print("here")
+                    if contains_in_path(state, nxt_node):
+                        continue
+
+                    new_depth = state.depth + 1
+                    
+                    # goal に到達不能なノードは枝刈り
+                    if nxt_node not in dist_to_goal:
+                        continue
+                        
+                    # 同じ path 内で再訪問しない
+                    if contains_in_path(state, nxt_node):
                         continue
                     
-                    # 隣接ノードの探索
-                    if nxt_node not in visited:
-                        new_path = path + [nxt_node]
-                        new_visited = visited | {nxt_node}
-                        
-                        # 次の探索候補となる path のスコアを算出する
+                    new_depth = state.depth + 1
+                    # goal に着いたら即 best 更新
+                    if nxt_node == goal_id:
+                        if new_depth > longest_path_length:
+                            goal_state = State(
+                                node=nxt_node,
+                                parent=state,
+                                depth=new_depth,
+                                score=state.score
+                            )
+
+                            best_state = goal_state
+                            longest_path_length = new_depth
+
+                            print(f"Updated best length: {longest_path_length}")
+
+                        continue
+
+                    # 序盤・中盤は「遠回りできそう」を評価
+                    # target_depth を超えたら goal に近い候補も評価する
+                    d = min(dist_to_goal[nxt_node], dist_cap)
+                    out_deg = reachable_out_degree.get(nxt_node, 0)
+
+                    if new_depth < target_depth:
                         score = (
-                            len(new_path)
-                            + dist_weight * dist_to_goal[nxt_node]
-                            + edge_weight * reachable_out_degree.get(nxt_node, 0)
+                            new_depth
+                            + dist_weight * d
+                            + edge_weight * out_deg
                         )
-                        
-                        # 探索候補のリストに追加
-                        candidates.append((score, new_path, new_visited))
-            
+                    else:
+                        # 目標深さを超えたら、goal に着地しやすい方も高評価
+                        score = (
+                            new_depth
+                            - landing_weight * dist_to_goal[nxt_node]
+                            + edge_weight * out_deg
+                        )
+
+                    local_candidates.append((score, nxt_node, new_depth))
+
+                # 出次数が大きいノードで候補が爆発しないよう、
+                # 各 state ごとに上位 children_per_state 個だけ残す
+                if len(local_candidates) > children_per_state:
+                    local_candidates = heapq.nlargest(
+                        children_per_state,
+                        local_candidates,
+                        key=lambda x: x[0]
+                    )
+
+                for score, nxt_node, new_depth in local_candidates:
+                    new_state = State(
+                        node=nxt_node,
+                        parent=state,
+                        depth=new_depth,
+                        score=score
+                    )
+
+                    candidates.append(new_state)
+
             if not candidates:
                 break
-            
-            # score 上位 beam_width 本だけ残す
-            top_candidates = heapq.nlargest(
-                beam_width,
+
+            # -----------------------------
+            # beam の残し方
+            #
+            # 1. score が高いもの
+            # 2. goal に近いもの
+            #
+            # を混ぜる
+            # -----------------------------
+            far_keep = int(beam_width * 0.7)
+            near_keep = beam_width - far_keep
+
+            # 長く伸びそうな候補
+            top_by_score = heapq.nlargest(
+                far_keep,
                 candidates,
-                key=lambda x: x[0]
+                key=lambda s: s.score
             )
 
-            beam = [
-                (path, visited)
-                for score, path, visited in top_candidates
-            ]
-            
-            print(beam)
-            
-        print(f"The length of longest path from {start} to {goal} is:")
-        print(f"length: {longest_path_length}")
-        return 
+            # goal に近い候補
+            top_by_near_goal = heapq.nsmallest(
+                near_keep,
+                candidates,
+                key=lambda s: dist_to_goal[s.node]
+            )
+
+            # 重複除去
+            new_beam = []
+            seen_ids = set()
+
+            for state in top_by_score + top_by_near_goal:
+                state_id = id(state)
+
+                if state_id not in seen_ids:
+                    seen_ids.add(state_id)
+                    new_beam.append(state)
+
+            beam = new_beam
+
+            # すでに max_depth 付近まで行ったら終了
+            if step >= max_depth:
+                break
+
+            # -----------------------------
+            # best_state があればそこから復元
+            # なければ初期最短経路を使う
+            # -----------------------------
+            if best_state is not None:
+                longest_path = reconstruct_path(best_state)
+
+            print(f"The length of the longest path is {longest_path_length}")
     
 
     # Helper function for Homework #3:

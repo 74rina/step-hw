@@ -1,6 +1,7 @@
 import sys
 import collections
 from collections import deque
+import heapq
 
 
 class Wikipedia:
@@ -192,9 +193,123 @@ class Wikipedia:
     def find_longest_path(self, start, goal):
         #------------------------#
         # Write your code here!  #
-        #------------------------#
-        pass
+        #------------------------#   
+        start_id = self.title_to_id[start]
+        goal_id = self.title_to_id[goal]
+        
+        visited = set()
+        
+        # 結果
+        longest_path = []
+        longest_path_length = 0
+        
+        # Beam Search の定数
+        max_depth = 100000
+        beam_width = 10
+        dist_weight = 1.0
+        edge_weight = 0.1
+        
+        
+        # Beam Search のスコア算出
+        
+        # 逆向きの links を作る
+        reverse_links = {node: [] for node in self.links.keys()}
+        for src in self.links.keys():
+            for dst in self.links[src]:
+                if dst in reverse_links:
+                    reverse_links[dst].append(src)
+        
+        
+        # ゴール→各ノードの最短経路を求める（逆向きBFS）
+        dist_to_goal = {goal_id: 0}
+        searching = deque([goal_id])
+        
+        while searching:
+            cur_node = searching.popleft()
+            
+            for prev_node in reverse_links[cur_node]:
+                if prev_node not in dist_to_goal:
+                    dist_to_goal[prev_node] = dist_to_goal[cur_node] + 1
+                    searching.append(prev_node)
+        
+        # start から goal に到達不可能の場合
+        if start_id not in dist_to_goal:
+            print("No path found...")
+            return
+              
+                  
+        # 各ノードからの、ゴールに到達可能な辺の数を求める
+        reachable_out_degree = {}
+        for node in self.links:
+            count = 0
+            for nxt in self.links[node]:
+                if nxt in dist_to_goal:
+                    count += 1
+            reachable_out_degree[node] = count
+        
+        
+        # Beam Search でスコアの高いものを選んで探索する
+        beam = [([start_id], {start_id})]
+        while beam:
+            candidates = []
+            
+            for path, visited in beam:
+                cur_node = path[-1]
+                
+                # 探索の深さ制限
+                if len(path) > max_depth:
+                    continue
+                    
+                # 隣接ノードを探索する
+                for nxt_node in self.links[cur_node]:
+                    # 枝刈り（ゴールに到達不能ノードを排除）
+                    if nxt_node not in dist_to_goal:
+                        continue
+                    
+                    # ゴールに達する場合
+                    if cur_node == goal_id:
+                        if len(path) > len(longest_path):
+                            longest_path_length = len(path)
+                            longest_path = path[:]
+                            print("here")
+                        continue
+                    
+                    # 隣接ノードの探索
+                    if nxt_node not in visited:
+                        new_path = path + [nxt_node]
+                        new_visited = visited | {nxt_node}
+                        
+                        # 次の探索候補となる path のスコアを算出する
+                        score = (
+                            len(new_path)
+                            + dist_weight * dist_to_goal[nxt_node]
+                            + edge_weight * reachable_out_degree.get(nxt_node, 0)
+                        )
+                        
+                        # 探索候補のリストに追加
+                        candidates.append((score, new_path, new_visited))
+            
+            if not candidates:
+                break
+            
+            # score 上位 beam_width 本だけ残す
+            top_candidates = heapq.nlargest(
+                beam_width,
+                candidates,
+                key=lambda x: x[0]
+            )
 
+            beam = [
+                (path, visited)
+                for score, path, visited in top_candidates
+            ]
+            
+            print(beam)
+            
+        print(f"The length of longest path from {start} to {goal} is:")
+        print(f"length: {longest_path_length}")
+        return 
+    
 
     # Helper function for Homework #3:
     # Please use this function to check if the found path is well formed.
@@ -236,6 +351,7 @@ if __name__ == "__main__":
     # wikipedia.find_shortest_path("渋谷", "骨なし魚")
     
     # Homework #2
-    wikipedia.find_most_popular_pages()
+    # wikipedia.find_most_popular_pages()
     # Homework #3 (optional)
+    # wikipedia.find_longest_path("A", "F")
     wikipedia.find_longest_path("渋谷", "池袋")

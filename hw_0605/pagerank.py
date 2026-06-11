@@ -127,13 +127,13 @@ class Wikipedia:
         # ページランクの収束判定 O(N)
         def converge(old_pageranks, new_pageranks, step):
             diff = 0
-            
+            # ページランクの更新幅を計算 O(N)
             for page_id, rank in old_pageranks.items():
                 old_rank = rank
                 new_rank = new_pageranks[page_id]
                 diff += (new_rank - old_rank) ** 2
 
-            print(f"step{step}: {diff}")
+            print(f"step{step}: {diff}") # デバッグ
             return diff < 0.01
 
 
@@ -165,8 +165,10 @@ class Wikipedia:
             new_pageranks = dict.fromkeys(self.titles, 0)
             distribute_all = 0
             
+            # 現在のノードのページランクを隣接/全ノードに分配
             for cur_node, nxt_nodes in self.links.items():        
                 if nxt_nodes:
+                    # 隣接ノードに 85%、全ノードに 15% を分配
                     distribute_next = pageranks[cur_node] * 0.85 / len(nxt_nodes)
                     distribute_all += pageranks[cur_node] * 0.15 / len(self.titles)
                     
@@ -174,9 +176,10 @@ class Wikipedia:
                         new_pageranks[nxt_node] += distribute_next
                         
                 else:
+                    # 隣接ノードがない場合、100% を分配
                     distribute_all += pageranks[cur_node] / len(self.titles)
                 
-            # 全ノードに分配 O(N)
+            # 全ノードに分配
             for page_id in self.titles.keys():
                 new_pageranks[page_id] += distribute_all
             
@@ -448,17 +451,18 @@ if __name__ == "__main__":
 
     wikipedia = Wikipedia("./wikipedia_dataset/pages_medium.txt", "./wikipedia_dataset/links_medium.txt")
     # Example
-    # wikipedia.find_longest_titles()
+    wikipedia.find_longest_titles()
     # Example
-    # wikipedia.find_most_linked_pages()
+    wikipedia.find_most_linked_pages()
     
     # Homework #1
     # wikipedia.find_shortest_path("A", "F")
-    # wikipedia.find_shortest_path("渋谷", "パレートの法則")
-    # wikipedia.find_shortest_path("渋谷", "骨なし魚")
+    wikipedia.find_shortest_path("渋谷", "パレートの法則")
+    wikipedia.find_shortest_path("渋谷", "骨なし魚")
     
     # Homework #2
-    # wikipedia.find_most_popular_pages()
+    wikipedia.find_most_popular_pages()
+    
     # Homework #3 (optional)
     # wikipedia.find_longest_path("A", "F")
-    wikipedia.find_longest_path("渋谷", "池袋")
+    # wikipedia.find_longest_path("渋谷", "池袋")

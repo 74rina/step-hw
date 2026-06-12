@@ -459,10 +459,12 @@ if __name__ == "__main__":
     # wikipedia.find_shortest_path("A", "F")
     wikipedia.find_shortest_path("渋谷", "パレートの法則")
     wikipedia.find_shortest_path("渋谷", "骨なし魚")
+    wikipedia.find_shortest_path("骨なし魚", "バンビ")
+    wikipedia.find_shortest_path("骨なし魚", "マカロン")
     
     # Homework #2
     wikipedia.find_most_popular_pages()
     
     # Homework #3 (optional)
-    # wikipedia.find_longest_path("A", "F")
-    # wikipedia.find_longest_path("渋谷", "池袋")
+    wikipedia.find_longest_path("A", "F")
+    wikipedia.find_longest_path("渋谷", "池袋")

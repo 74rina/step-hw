@@ -222,3 +222,7 @@ hw_0605/wikipedia_dataset/
 hw_0515/words.txt
 
 coding_interview.md
+
+# tsp
+node_modules/
+google-step-tsp/visualizer/build/

@@ -5,7 +5,7 @@ import math
 from common import print_tour, read_input
 
 
-# index: (座標) の辞書（スタート地点を除く）を作る
+# index: (座標) の辞書を作る
 def create_cities_dict(cities):
     cities_dict = {}
     for i, location in enumerate(cities):

@@ -221,7 +221,9 @@ __marimo__/
 hw_0605/wikipedia_dataset/
 hw_0515/words.txt
 
+# coding interview
 coding_interview.md
+coding_interview.txt
 
 # tsp
 node_modules/

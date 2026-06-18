@@ -107,8 +107,10 @@ def solve(cities):
         
         if is_intersect:
             # 2辺 (swap1-swap2), (cur-nxt) を (swap1-cur), (swap2-nxt) に交換
-            swap1_loc = cities[swap_1]
-            swap2_loc = cities[swap_2]
+            swap1_city = path[swap_1]
+            swap2_city = path[swap_2]
+            swap1_loc = cities[swap1_city]
+            swap2_loc = cities[swap2_city]
             
             total_dist = (total_dist
                           - calc_distance(swap1_loc, swap2_loc)
@@ -116,7 +118,8 @@ def solve(cities):
                           + calc_distance(swap2_loc, nxt_location)
                           )
             
-            path[swap_2], path[cur_city] = path[cur_city], path[swap_2]
+            cur_index = len(path) - 2
+            path[swap_2:cur_index + 1] = reversed(path[swap_2:cur_index + 1])
             
         else:
             total_dist += dist
@@ -135,5 +138,5 @@ if __name__ == '__main__':
     # assert len(sys.argv) > 1
     # input_file = input("入力ファイル名：")
     # tour = solve(read_input(input_file))
-    tour = solve(read_input("input_output/input_1.csv"))
+    tour = solve(read_input("input_output/input_0.csv"))
     print_tour(tour)

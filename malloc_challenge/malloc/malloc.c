@@ -15,6 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define BIN_SIZE 32
+
 //
 // Interfaces to get memory pages from OS
 //
@@ -26,15 +28,21 @@ void munmap_to_system(void *ptr, size_t size);
 // Struct definitions
 //
 
+// メモリのメタデータ用 双方向連結リスト
 typedef struct my_metadata_t {
   size_t size;
   struct my_metadata_t *next;
+  struct my_metadata_t *prev;
 } my_metadata_t;
 
+// ヒープ領域
 typedef struct my_heap_t {
   my_metadata_t *free_head;
   my_metadata_t dummy;
 } my_heap_t;
+
+// Free List Bin（サイズ別の空き領域リスト）
+my_metadata_t *bins[BIN_SIZE];
 
 //
 // Static variables (DO NOT ADD ANOTHER STATIC VARIABLES!)
@@ -45,12 +53,14 @@ my_heap_t my_heap;
 // Helper functions (feel free to add/remove/edit!)
 //
 
+// 空き領域リストに追加
 void my_add_to_free_list(my_metadata_t *metadata) {
   assert(!metadata->next);
   metadata->next = my_heap.free_head;
   my_heap.free_head = metadata;
 }
 
+// 空き領域リストから除外
 void my_remove_from_free_list(my_metadata_t *metadata, my_metadata_t *prev) {
   if (prev) {
     prev->next = metadata->next;
@@ -58,6 +68,52 @@ void my_remove_from_free_list(my_metadata_t *metadata, my_metadata_t *prev) {
     my_heap.free_head = metadata->next;
   }
   metadata->next = NULL;
+}
+
+// 領域サイズ -> bin を計算
+static int size_to_bin(size_t size) {
+  size_t bin_idx = size / 1000;
+
+  // 超過した場合
+  if (bin_idx >= BIN_SIZE) {
+    bin_idx = BIN_SIZE - 1;
+  }
+
+  return (int)bin_idx;
+}
+
+// 空き領域 bin に追加する
+void add_to_bin(my_metadata_t *m) {
+  int bin_idx = size_to_bin(m->size);
+
+  // 該当 bin の先頭に追加
+  m->next = bins[bin_idx];
+  if (m->next) {
+    m->next->prev = m;
+  }
+  m->prev = NULL;
+
+  // 該当 bin の先頭を更新
+  bins[bin_idx] = m;
+}
+
+// 空き領域 bin から削除する
+void remove_from_bin(my_metadata_t *m) {
+  // prev->next を変更
+  if (m->prev) {
+    m->prev->next = m->next;
+  } else {
+    bins[size_to_bin(m->size)] = m->next;
+  }
+
+  // next->prev を変更
+  if (m->next) {
+    m->next->prev = m->prev;
+  }
+
+  // next, prev を無効化
+  m->next = NULL;
+  m->prev = NULL;
 }
 
 //
@@ -85,7 +141,7 @@ void *my_malloc(size_t size) {
   my_metadata_t *best_prev = NULL;
   size_t best_size = INFINITY;
 
-  // サイズが最小の領域を求める
+  // サイズが最小の空き領域を求める
   while (cur) {
     if (cur->size >= size && cur->size < best_size) {
       best_prev = cur_prev;

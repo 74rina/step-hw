@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BIN_SIZE 32
+#define BIN_SIZE 10
 
 //
 // Interfaces to get memory pages from OS
@@ -59,7 +59,7 @@ static size_t payload_size(my_metadata_t *m) { return m->size; }
 
 // 前（左）の領域の先頭を求める
 static my_metadata_t *get_prev_block(my_metadata_t *m) {
-  size_t prev_size = *(size_t *)((char *)m - sizeof(size_t));
+  size_t prev_size = *((size_t *)m - 1);
 
   // 既に先頭の場合
   if (prev_size == 0) {
@@ -105,10 +105,6 @@ static void mark_free(my_metadata_t *m) { m->allocated = false; }
 // 領域サイズ -> bin を計算する
 static int size_to_bin(size_t size) {
   size_t bin_idx = size / 1000;
-  // 超過した場合
-  if (bin_idx >= BIN_SIZE) {
-    bin_idx = BIN_SIZE - 1;
-  }
   return (int)bin_idx;
 }
 

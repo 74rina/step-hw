@@ -111,7 +111,7 @@ void remove_from_bin(my_metadata_t *m) {
     m->next->prev = m->prev;
   }
 
-  // next, prev を無効化
+  // 自分の next, prev を無効化
   m->next = NULL;
   m->prev = NULL;
 }
@@ -122,9 +122,10 @@ void remove_from_bin(my_metadata_t *m) {
 
 // This is called at the beginning of each challenge.
 void my_initialize() {
-  my_heap.free_head = &my_heap.dummy;
-  my_heap.dummy.size = 0;
-  my_heap.dummy.next = NULL;
+  // 空き領域 bin を初期化
+  for (int i = 0; i < BIN_SIZE; i++) {
+    bins[i] = NULL;
+  }
 }
 
 // my_malloc() is called every time an object is allocated.
@@ -135,22 +136,37 @@ void *my_malloc(size_t size) {
   // First-fit: Find the first free slot the object fits.
   // TODO: Update this logic to Best-fit!
 
-  my_metadata_t *cur = my_heap.free_head; // 連結リストの現在ノード
-  my_metadata_t *cur_prev = NULL;         // 連結リストの前ノード
   my_metadata_t *best = NULL;
-  my_metadata_t *best_prev = NULL;
   size_t best_size = INFINITY;
+  int bin_idx = size_to_bin(size); // 該当 bin のインデックス
 
-  // サイズが最小の空き領域を求める
-  while (cur) {
-    if (cur->size >= size && cur->size < best_size) {
-      best_prev = cur_prev;
-      best = cur;
-      best_size = cur->size;
+  // サイズが最小の空き領域を求める（該当 bin を探す）
+  for (int i = bin_idx; i < BIN_SIZE; i++) {
+    my_metadata_t *cur = bins[i]; // 連結リストの現在ノード
+    my_metadata_t *candidate = NULL;
+    size_t candidate_size = INFINITY;
+
+    // 現在 bin の連結リストから空き領域を探す
+    while (cur) {
+      if (cur->size >= size && cur->size < candidate_size) {
+        candidate = cur;
+        candidate_size = cur->size;
+
+        // bin サイズがヒット
+        if (candidate_size == size) {
+          break;
+        }
+      }
+      cur = cur->next;
     }
-    cur_prev = cur;
-    cur = cur->next;
+
+    // 該当 bin が見つかった
+    if (candidate) {
+      best = candidate;
+      break;
+    }
   }
+
   // now, metadata points to the first free slot
   // and prev is the previous entry.
 
@@ -167,22 +183,23 @@ void *my_malloc(size_t size) {
     my_metadata_t *metadata = (my_metadata_t *)mmap_from_system(buffer_size);
     metadata->size = buffer_size - sizeof(my_metadata_t);
     metadata->next = NULL;
-    // Add the memory region to the free list.
-    my_add_to_free_list(metadata);
+    metadata->prev = NULL;
+    add_to_bin(metadata);
     // Now, try my_malloc() again. This should succeed.
     return my_malloc(size);
   }
+
+  remove_from_bin(best);
 
   // |ptr| is the beginning of the allocated object.
   //
   // ... | metadata | object | ...
   //     ^          ^
   //     metadata   ptr
+
+  // 確保する領域のサイズが足りない
   void *ptr = best + 1;
   size_t remaining_size = best->size - size;
-  // Remove the free slot from the free list.
-  my_remove_from_free_list(best, best_prev);
-
   if (remaining_size > sizeof(my_metadata_t)) {
     // Shrink the metadata for the allocated object
     // to separate the rest of the region corresponding to remaining_size.
@@ -200,9 +217,11 @@ void *my_malloc(size_t size) {
     my_metadata_t *new_metadata = (my_metadata_t *)((char *)ptr + size);
     new_metadata->size = remaining_size - sizeof(my_metadata_t);
     new_metadata->next = NULL;
+    new_metadata->prev = NULL;
     // Add the remaining free slot to the free list.
-    my_add_to_free_list(new_metadata);
+    add_to_bin(new_metadata);
   }
+
   return ptr;
 }
 
@@ -215,8 +234,13 @@ void my_free(void *ptr) {
   //     ^          ^
   //     metadata   ptr
   my_metadata_t *metadata = (my_metadata_t *)ptr - 1;
-  // Add the free slot to the free list.
-  my_add_to_free_list(metadata);
+
+  // 連結リストから外す
+  metadata->next = NULL;
+  metadata->prev = NULL;
+
+  // 該当 bin に追加
+  add_to_bin(metadata);
 }
 
 // This is called at the end of each challenge.
